@@ -1,17 +1,15 @@
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { readdirSync } from 'node:fs'
-import {
-  defineConfig
-} from 'vite';
-import tailwindcss from '@tailwindcss/vite';
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { readdirSync } from "node:fs";
+import { defineConfig } from "vite";
+import tailwindcss from "@tailwindcss/vite";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const days: Record<string, string> = {};
 
 for (const dir of readdirSync(__dirname)) {
-  if (dir.startsWith('day')) {
+  if (dir.startsWith("day")) {
     days[dir] = resolve(__dirname, `${dir}/index.html`);
   }
 }
@@ -21,9 +19,9 @@ export default defineConfig({
   build: {
     rollupOptions: {
       input: {
-        main: resolve(__dirname, 'index.html'),
-        ...days
-      }
-    }
-  }
+        main: resolve(__dirname, "index.html"),
+        ...days,
+      },
+    },
+  },
 });

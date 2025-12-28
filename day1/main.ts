@@ -1,20 +1,29 @@
-const game = document.createElement('canvas');
-const paddingX = 100;
-const paddingY = 0;
-game.width = 400 + paddingX;
-game.height = 300 + paddingY;
-const WIDTH = 400;
-const HEIGHT = 300;
-game.style.border = '1px solid #fff';
-document.getElementById('app')!.appendChild(game);
-document.body.style.background = 'black';
+const game = document.createElement("canvas");
+const ctx = game.getContext("2d")!;
 
-const ctx = game.getContext('2d')!;
+const padding = 50;
+const paddingX = 0;
+const paddingY = 0;
+const WIDTH = Math.min(window.innerWidth - padding, 400);
+const HEIGHT = Math.min(window.innerHeight - padding, 280);
+
+game.width = WIDTH + paddingX;
+game.height = HEIGHT + paddingY;
+
+game.style.border = "1.2px solid #fff";
+
+document.getElementById("app")?.appendChild(game);
+
+document.body.style.background = "black";
+
 const u8ca = new Uint8ClampedArray(4 * WIDTH * HEIGHT);
 const EPS = 1e-6;
 
 class vec2 {
-  constructor(public x: number, public y: number) { }
+  constructor(
+    public x: number,
+    public y: number
+  ) {}
   static add(a: vec2, b: vec2 | number) {
     return b instanceof vec2 ? new vec2(a.x + b.x, a.y + b.y) : new vec2(a.x + b, a.y + b);
   }
@@ -34,9 +43,13 @@ class vec2 {
     return new vec2(Math.cos(a.x), Math.cos(a.y));
   }
 }
-
 class vec4 {
-  constructor(public x: number, public y: number, public z: number, public w: number) { }
+  constructor(
+    public x: number,
+    public y: number,
+    public z: number,
+    public w: number
+  ) {}
   static add(a: vec4, b: vec4 | number) {
     return b instanceof vec4
       ? new vec4(a.x + b.x, a.y + b.y, a.z + b.z, a.w + b.w)
@@ -48,12 +61,7 @@ class vec4 {
       : new vec4(a.x * b, a.y * b, a.z * b, a.w * b);
   }
   static div(a: vec4, b: vec4) {
-    return new vec4(
-      a.x / (b.x + EPS),
-      a.y / (b.y + EPS),
-      a.z / (b.z + EPS),
-      a.w / (b.w + EPS)
-    );
+    return new vec4(a.x / (b.x + EPS), a.y / (b.y + EPS), a.z / (b.z + EPS), a.w / (b.w + EPS));
   }
   static exp(a: vec4) {
     return new vec4(Math.exp(a.x), Math.exp(a.y), Math.exp(a.z), Math.exp(a.w));
@@ -91,34 +99,18 @@ function draw(time: number) {
         O = vec4.add(
           O,
           vec4.mul(
-            new vec4(
-              Math.sin(f.x) + 1,
-              Math.sin(f.y) + 1,
-              Math.sin(f.y) + 1,
-              Math.sin(f.x) + 1
-            ),
+            new vec4(Math.sin(f.x) + 1, Math.sin(f.y) + 1, Math.sin(f.y) + 1, Math.sin(f.x) + 1),
             Math.abs(f.x - f.y) + 0.1
           )
         );
 
-        const t = vec2.cos(
-          vec2.add(vec2.mul(new vec2(f.y, f.x), k), new vec2(k + time, k + time))
-        );
+        const t = vec2.cos(vec2.add(vec2.mul(new vec2(f.y, f.x), k), new vec2(k + time, k + time)));
 
         f = vec2.add(f, vec2.add(vec2.div(t, k), 0.7));
       }
 
       const color = vec4.tanh(
-        vec4.div(
-          vec4.mul(
-            vec4.exp(
-              vec4.add(
-                vec4.mul(new vec4(-1, 1, 2, 0), -p.y),
-                zVal - 4
-              )
-            ), 7
-          ), O
-        )
+        vec4.div(vec4.mul(vec4.exp(vec4.add(vec4.mul(new vec4(-1, 1, 2, 0), -p.y), zVal - 4)), 7), O)
       );
 
       setRGBA(x, y, color);
@@ -134,4 +126,5 @@ function frame(t: number) {
   draw((t - start) / 1000);
   requestAnimationFrame(frame);
 }
+
 requestAnimationFrame(frame);
