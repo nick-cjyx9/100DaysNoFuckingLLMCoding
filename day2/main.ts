@@ -39,7 +39,7 @@ function line2CP(a: Point, b: Point) {
   ctx.moveTo(a.x, a.y);
   ctx.lineTo(b.x, b.y);
   ctx.closePath();
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 1.4;
   ctx.stroke();
 }
 
@@ -54,8 +54,12 @@ class Point {
   }
   draw() {
     ctx.fillStyle = "white";
+    const r = 5;
     const tp = this.transformC2CLT();
-    ctx.fillRect(tp.x - 10, tp.y - 10, 20, 20);
+    ctx.beginPath();
+    ctx.arc(tp.x, tp.y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.closePath();
   }
   transformC2SLT() {
     if (this.base !== "C")
@@ -76,8 +80,8 @@ class Point {
 
 class Vector2 {
   constructor(
-    public x: number,
-    public y: number
+    public readonly x: number,
+    public readonly y: number
   ) {}
   norm() {
     return Math.sqrt(this.x * this.x + this.y * this.y);
@@ -119,12 +123,13 @@ class Line {
   }
 }
 
-const theta = Math.PI / 7;
+const theta = Math.PI / 8;
 class Light extends Line {
   constructor(
     public canvasContext: CanvasRenderingContext2D,
     public inPrism: boolean,
-    S: Point = new Point(-game.width / 2 - 10, -game.height / 8),
+    public N: [number, string] = [1.55, "white"],
+    public S: Point = new Point(-game.width / 2 - 10, -game.height / 8),
     direction: Vector2 = new Vector2(Math.cos(theta), Math.sin(theta))
   ) {
     super(S, direction);
@@ -132,15 +137,13 @@ class Light extends Line {
   intersect(a: Line) {
     const u = Line.intersect(this, a);
     if (!u) return null;
-    if (this.direction.x > 0 && u.x <= this.S.x) return null;
-    if (this.direction.x < 0 && u.x >= this.S.x) return null;
-    if (this.direction.x === 0 && this.S.y > 0 && u.y <= this.S.y) return null;
-    if (this.direction.x === 0 && this.S.y < 0 && u.y >= this.S.y) return null;
+    if (Vector2.dot(this.direction, new Vector2(u.x - this.S.x, u.y - this.S.y)) <= 0) return null;
+    // a·b > 0 => a, b is in the same direction
     return u;
   }
   draw(prism: Prism) {
-    const N = 1.55;
-    ctx.strokeStyle = "white";
+    const N = this.N[0];
+    ctx.strokeStyle = this.N[1];
     const intersects: [Point, Line][] = [];
     prism.edges.forEach((e) => {
       const a = this.intersect(e);
@@ -155,18 +158,20 @@ class Light extends Line {
     line2CP(this.S, M);
     // refraction
     // sinb = sina / N
-    // sina = -cosa'
+    const sina = Math.abs(Vector2.cosine(this.direction, AB.direction));
     let sinb: number;
-    if (this.inPrism) sinb = -Vector2.cosine(this.direction, AB.direction) * N;
-    else sinb = -Vector2.cosine(this.direction, AB.direction) / N;
-    // sinb = -cosa' / N
+    if (this.inPrism) {
+      if (sina - 1 / N > 0) return;
+      // total reflection
+      sinb = sina * N;
+    } else sinb = sina / N;
     const cosb = Math.sqrt(1 - sinb * sinb);
-    const sinl = cosb / 2 - (Math.sqrt(3) * sinb) / 2;
-    const cosl = Math.sqrt(1 - sinl * sinl);
-    // sinl = sin(pi/6-b) = cosb/2 - √3sinb/2
-    const nextDirection = new Vector2(cosl, sinl);
-    // (cosl', sinl)
-    const next = new Light(this.canvasContext, !this.inPrism, M, nextDirection);
+    const cosl = (Math.sqrt(3) * cosb) / 2 + sinb / 2;
+    const sinl = (sinb * Math.sqrt(3)) / 2 - cosb / 2;
+    let nextDirection: Vector2;
+    if (this.inPrism) nextDirection = new Vector2(cosl, -sinl);
+    else nextDirection = new Vector2(cosl, sinl);
+    const next = new Light(this.canvasContext, !this.inPrism, this.N, M, nextDirection);
     next.draw(prism);
   }
 }
@@ -174,7 +179,7 @@ class Light extends Line {
 class Prism {
   _RectCenter: Point;
   EdgeLength: number;
-  light: Light;
+  lights: Light[];
   constructor(public ele: HTMLDivElement) {
     // IV coordinate sys on whole screen, center at square center
     this._RectCenter = new Point(
@@ -184,7 +189,14 @@ class Prism {
     );
     this.EdgeLength = ele.offsetWidth;
 
-    this.light = new Light(ctx, false);
+    this.lights = [
+      new Light(ctx, false, [1.25, "red"]),
+      new Light(ctx, false, [1.4, "orange"]),
+      new Light(ctx, false, [1.55, "yellow"]),
+      new Light(ctx, false, [1.7, "green"]),
+      new Light(ctx, false, [1.85, "blue"]),
+      new Light(ctx, false, [2, "purple"]),
+    ];
 
     ele.addEventListener("mousedown", () => {
       const controller = new AbortController();
@@ -197,16 +209,15 @@ class Prism {
             lx = e.clientX;
             ly = e.clientY;
           }
-          setTimeout(() => {
+          requestAnimationFrame(() => {
             this._move(e.clientX - lx, e.clientY - ly);
             lx = e.clientX;
             ly = e.clientY;
-          }, 10);
+          });
         },
         { signal: controller.signal }
       );
-      document.addEventListener("mouseup", controller.abort.bind(controller));
-      // either bind or () => c.a
+      document.addEventListener("mouseup", () => controller.abort(), { signal: controller.signal, once: true });
     });
   }
   get center() {
@@ -244,7 +255,9 @@ class Prism {
     this.ele.style.left = `${nx}px`;
     this.ele.style.top = `${ny}px`;
     ctx.clearRect(0, 0, game.width, game.height);
-    this.light.draw(this);
+    this.lights.forEach((l) => {
+      l.draw(this);
+    });
   }
   moveTo(p: Point) {
     const tdp = p.transformC2SLT();
